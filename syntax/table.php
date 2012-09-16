@@ -10,7 +10,7 @@ if(!defined('DOKU_INC')) die();
 class syntax_plugin_data_table extends DokuWiki_Syntax_Plugin {
 
     /**
-     * will hold the data helper plugin
+     * @var helper_plugin_data will hold the data helper plugin
      */
     var $dthlp = null;
 
@@ -209,7 +209,11 @@ class syntax_plugin_data_table extends DokuWiki_Syntax_Plugin {
         $sqlite = $this->dthlp->_getDB();
         if(!$sqlite) return false;
 
-        $this->updateSQLwithQuery($data); // handles request params
+        if (!$this->hasRequestFilter()) {
+            $data['sql'] = $this->_buildSQL($data);
+        } else {
+            $this->updateSQLwithQuery($data); // handles request params
+        }
 
         // run query
         $clist = array_keys($data['cols']);
@@ -568,10 +572,9 @@ class syntax_plugin_data_table extends DokuWiki_Syntax_Plugin {
     }
 
     function updateSQLwithQuery(&$data) {
-        // take overrides from HTTP request params into account
-        $cur_params=$this->dthlp->_get_current_param(false);
+        if($this->hasRequestFilter()){
+            if (!isset($data['filter'])) $data['filter'] = array();
 
-        if(count(array_diff(array_merge($cur_params, $data['cur_param']), array_intersect($cur_params, $data['cur_param'])))>0){
             if (isset($_REQUEST['datasrt'])) {
                 if($_REQUEST['datasrt']{0} == '^'){
                     $data['sort'] = array(substr($_REQUEST['datasrt'],1),'DESC');
@@ -579,6 +582,10 @@ class syntax_plugin_data_table extends DokuWiki_Syntax_Plugin {
                     $data['sort'] = array($_REQUEST['datasrt'],'ASC');
                 }
             }
+
+            // add request filters
+            $data['filter'] = array_merge($data['filter'], $this->dthlp->_get_filters());
+
             // Rebuild SQL FIXME do this smarter & faster
             $data['sql'] = $this->_buildSQL($data);
         }
@@ -586,6 +593,10 @@ class syntax_plugin_data_table extends DokuWiki_Syntax_Plugin {
         if($data['limit'] && (int) $_REQUEST['dataofs']){
             $data['sql'] .= ' OFFSET '.((int) $_REQUEST['dataofs']);
         }
+    }
+
+    function hasRequestFilter() {
+        return isset($_REQUEST['datasrt']) || isset($_REQUEST['dataflt']);
     }
 }
 
